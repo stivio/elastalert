@@ -525,8 +525,8 @@ class HipChatAlerter(Alerter):
 
     def __init__(self, rule):
         super(HipChatAlerter, self).__init__(rule)
-        self.hipchat_msg_color = self.rule.get('hipchat_msg_color', 'red')
         self.hipchat_auth_token = self.rule['hipchat_auth_token']
+        self.hipchat_msg_color = self.rule.get('hipchat_msg_color', 'red')
         self.hipchat_room_id = self.rule['hipchat_room_id']
         self.hipchat_domain = self.rule.get('hipchat_domain', 'api.hipchat.com')
         self.hipchat_ignore_ssl_errors = self.rule.get('hipchat_ignore_ssl_errors', False)
@@ -613,6 +613,7 @@ class SlackAlerter(Alerter):
                 response.raise_for_status()
             except RequestException as e:
                 raise EAException("Error posting to slack: %s" % e)
+
         elastalert_logger.info("Alert sent to Slack")
 
     def get_info(self):
@@ -738,6 +739,61 @@ class TelegramAlerter(Alerter):
     def get_info(self):
         return {'type': 'telegram',
                 'telegram_room_id': self.telegram_room_id}
+
+class SensuAlerter(Alerter):
+    """ Creates a Sensu check result for each alert """
+
+    def __init__(self, rule):
+        super(SensuAlerter, self).__init__(rule)
+        self.sensu_client_host = self.rule.get('sensu_client_host', 'localhost')
+        self.sensu_client_port = self.rule.get('sensu_client_port', 3030)
+        self.sensu_check_handlers = self.rule.get('sensu_check_handlers')
+
+    def alert(self, matches):
+        body = ''
+        for match in matches:
+            body += str(BasicMatchString(self.rule, match))
+            # Separate text of aggregated alerts with dashes
+            if len(matches) > 1:
+                body += '\n----------------------------------------\n'
+
+        # build sensu check result
+        import re
+        import socket
+        sensu_check_result = {
+            'name': re.sub('\W', '_', self.rule['name']),  # sensu accepts only alphanumeric chars
+            'output': body,
+            'status': 1
+        }
+        if self.sensu_check_handlers:
+            sensu_check_result['handlers'] = self.sensu_check_handlers
+
+        # send udp packet to sensu client
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # UDP
+        sock.sendto(json.dumps(sensu_check_result), (self.sensu_client_host, self.sensu_client_port))
+        logging.info("Alert sent to Sensu agent on %s:%d" % (self.sensu_client_host, self.sensu_client_port))
+
+    def resolve(self):
+         # build sensu resolve result
+        import re
+        sensu_check_result = {
+            'name': re.sub('\W', '_', self.rule['name']),  # sensu accepts only alphanumeric chars
+            'output': 'Alert is resolved',
+            'status': 0
+        }
+
+        if self.sensu_check_handlers:
+            sensu_check_result['handlers'] = self.sensu_check_handlers
+
+        # send udp packet to sensu client
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # UDP
+        sock.sendto(json.dumps(sensu_check_result), (self.sensu_client_host, self.sensu_client_port))
+        logging.info("Alert resolve sent to Sensu agent on %s:%d"  % (self.sensu_client_host, self.sensu_client_port))
+
+    def get_info(self):
+        return {'type': 'sensu',
+                'sensu_client_host': self.sensu_client_host,
+                'sensu_client_port': self.sensu_client_port}
 
 
 class GitterAlerter(Alerter):

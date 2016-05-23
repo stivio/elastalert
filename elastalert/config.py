@@ -55,6 +55,7 @@ alerts_mapping = {
     'slack': alerts.SlackAlerter,
     'pagerduty': alerts.PagerDutyAlerter,
     'victorops': alerts.VictorOpsAlerter,
+    'sensu': alerts.SensuAlerter,
     'telegram': alerts.TelegramAlerter,
     'gitter': alerts.GitterAlerter
 }

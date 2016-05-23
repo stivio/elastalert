@@ -209,6 +209,11 @@ properties:
   victorops_message_type: {enum: [INFO, WARNING, ACKNOWLEDGEMENT, CRITICAL, RECOVERY]}
   victorops_entity_display_name: {type: string}
 
+  ### Sensu
+  sensu_client_host: {type: string}
+  sensu_client_port: {type: string}
+  sensu_check_handlers: {type: [string, array]}
+
   ### Telegram
   telegram_bot_token: {type: string}
   telegram_room_id: {type: string}
